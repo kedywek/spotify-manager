@@ -1,51 +1,33 @@
-from fastapi import FastAPI, Query
-from spotipy import Spotify
-from spotipy.oauth2 import SpotifyOAuth
-from pydantic_settings import BaseSettings, SettingsConfigDict
+import json
+from fastapi import FastAPI, Query, Response, Request
+from fastapi.responses import RedirectResponse
+from spotify_service import spotify_service
+from models import PlaylistListResponse
 
-class Settings(BaseSettings):
-    # Pydantic will automatically link these to your .env keys
-    spotipy_client_id: str
-    spotipy_client_secret: str
-    spotipy_redirect_uri: str
-
-    model_config = SettingsConfigDict(env_file=".env")
-
-settings = Settings()
-
-app = FastAPI(title="Spotify AI Manager")
-
-# Initialize OAuth
-sp_oauth = SpotifyOAuth(
-    client_id=settings.spotipy_client_id,
-    client_secret=settings.spotipy_client_secret,
-    redirect_uri=settings.spotipy_redirect_uri,
-    scope="user-read-private playlist-read-private"
-)
-
-@app.get("/")
-def index():
-    return {"status": "Ready", "docs": "/docs"}
+app = FastAPI()
 
 @app.get("/login")
 def login():
-    """Step 1: Get the Spotify authorization URL."""
-    auth_url = sp_oauth.get_authorize_url()
-    return {"auth_url": auth_url}
+    return {"auth_url": spotify_service.get_auth_url()}
 
 @app.get("/callback")
-def callback(code: str = Query(...)):
-    """Step 2: Spotify redirects here with a 'code'."""
-    # Exchange code for access token
-    token_info = sp_oauth.get_access_token(code)
-    access_token = token_info['access_token']
+def callback(code: str):
+    token_info = spotify_service.get_token(code)
+    response = RedirectResponse(url="/playlists")
+    response.set_cookie(
+        key="spotify_session",
+        value=json.dumps(token_info),
+        httponly=True
+    )
+    return response
+
+@app.get("/playlists", response_model=PlaylistListResponse)
+def list_playlists(request: Request):
+    session_data = request.cookies.get("spotify_session")
     
-    # Use the token to get user info
-    sp = Spotify(auth=access_token)
-    user_details = sp.current_user()
+    if not session_data:
+        return RedirectResponse(url="/login")
+    token_info = json.loads(session_data)
+    items, total = spotify_service.get_user_playlists(token_info['access_token'])
     
-    return {
-        "message": f"Hello {user_details['display_name']}!",
-        "spotify_id": user_details['id'],
-        "followers": user_details['followers']['total']
-    }
+    return {"playlists": items, "total": total}
