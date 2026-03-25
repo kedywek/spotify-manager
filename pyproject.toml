@@ -9,3 +9,8 @@ dependencies = [
     "pydantic-settings>=2.13.1",
     "spotipy>=2.26.0",
 ]
+
+[tool.uv.workspace]
+members = [
+    "fast",
+]

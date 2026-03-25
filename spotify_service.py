@@ -34,4 +34,21 @@ class SpotifyService:
             })
         return playlists, results['total']
 
+    def get_playlist(self, token: str, playlist_id: str):
+        sp = Spotify(auth=token)
+        result = sp.playlist(playlist_id=playlist_id)
+
+        images = result.get('images', [])
+        tracks_info = result.get('tracks', {})
+
+        playlist = {
+            "id": result['id'],
+            "name": result['name'],
+            "description": result['description'],
+            "total_tracks": tracks_info.get('total', 0),
+            "image_url": images[0]['url'] if images else None
+            }
+        
+        return playlist
+        
 spotify_service = SpotifyService()

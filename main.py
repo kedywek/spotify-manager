@@ -2,7 +2,7 @@ import json
 from fastapi import FastAPI, Query, Response, Request
 from fastapi.responses import RedirectResponse
 from spotify_service import spotify_service
-from models import PlaylistListResponse
+from models import PlaylistListResponse, PlaylistBase
 
 app = FastAPI()
 
@@ -31,3 +31,17 @@ def list_playlists(request: Request):
     items, total = spotify_service.get_user_playlists(token_info['access_token'])
     
     return {"playlists": items, "total": total}
+
+
+@app.get("/playlists/{playlist_id}", response_model = PlaylistBase)
+def list_tracks(playlist_id: str, request: Request):
+
+    session_data = request.cookies.get("spotify_session")
+    if not session_data:
+        return RedirectResponse(url="/login")
+    
+    token_info = json.loads(session_data)
+    
+    playlist = spotify_service.get_playlist(token_info['access_token'], playlist_id)
+    
+    return playlist
