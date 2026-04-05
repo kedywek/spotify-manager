@@ -33,8 +33,8 @@ def list_playlists(request: Request):
     return {"playlists": items, "total": total}
 
 
-@app.get("/playlists/{playlist_id}", response_model = PlaylistBase)
-def list_tracks(playlist_id: str, request: Request):
+@app.get("/playlists/{playlist_id}")
+def detail_playlist(playlist_id: str, request: Request):
 
     session_data = request.cookies.get("spotify_session")
     if not session_data:
@@ -45,3 +45,15 @@ def list_tracks(playlist_id: str, request: Request):
     playlist = spotify_service.get_playlist(token_info['access_token'], playlist_id)
     
     return playlist
+
+@app.get("/track/{track_id}")
+def detail_track(track_id: str, request: Request):
+    session_data = request.cookies.get("spotify_session")
+    if not session_data:
+        return RedirectResponse(url="/login")
+    
+    token_info = json.loads(session_data)
+
+    track = spotify_service.get_track(token_info['access_token'], track_id)
+    
+    return track
