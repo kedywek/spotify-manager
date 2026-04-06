@@ -56,7 +56,15 @@ class SpotifyService:
     def get_track(self, token: str, track_id: str):
         sp = Spotify(auth=token)
         result = sp.track(track_id=track_id)
-    
-        return result
+
+        track = {
+            "artists": [
+                {"id": artist["id"], "name": artist["name"]} 
+                for artist in result["artists"]
+            ],
+            "id" : result["id"],
+            "name" : result["name"] 
+        }
+        return track
 
 spotify_service = SpotifyService()
