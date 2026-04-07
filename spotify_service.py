@@ -1,6 +1,7 @@
 from spotipy import Spotify
 from spotipy.oauth2 import SpotifyOAuth
 from config import settings
+import requests
 
 class SpotifyService:
     def __init__(self):
@@ -12,6 +13,8 @@ class SpotifyService:
             show_dialog=True,
             cache_path=None
         )
+        self.lastfm_api_key = settings.lastfm_api_key
+        self.lastfm_base_url = "http://ws.audioscrobbler.com/2.0/"
 
     def get_auth_url(self):
         return self.sp_oauth.get_authorize_url()
@@ -55,16 +58,36 @@ class SpotifyService:
     
     def get_track(self, token: str, track_id: str):
         sp = Spotify(auth=token)
-        result = sp.track(track_id=track_id)
-
+        result = sp.track(track_id = track_id)
+        
         track = {
             "artists": [
                 {"id": artist["id"], "name": artist["name"]} 
                 for artist in result["artists"]
             ],
             "id" : result["id"],
-            "name" : result["name"] 
+            "name" : result["name"]
         }
         return track
+    def get_lastfm_tags(self, artist: str, track:str):
+        
+        params = {
+            "method": "track.gettoptags",
+            "artist": artist,
+            "track": track,
+            "api_key": self.lastfm_api_key,
+            "format": "json"
+        }
+        try:
+            response = requests.get(self.lastfm_base_url, params=params, timeout=5)
+            response.raise_for_status()
+            data = response.json()
 
+            tags_list = data.get("toptags", {}).get("tag", [])
+            return [tag["name"].lower() for tag in tags_list[:5]]
+        except Exception as e:
+            print(f"Last.fm error: {e}")
+            return []
+
+    
 spotify_service = SpotifyService()

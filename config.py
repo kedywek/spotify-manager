@@ -4,7 +4,8 @@ class Settings(BaseSettings):
 
     spotipy_client_id: str
     spotipy_client_secret: str
-    spotipy_redirect_uri: str = "http://127.0.0.1:8000/callback"
+    spotipy_redirect_uri: str
+    lastfm_api_key: str
 
     model_config = SettingsConfigDict(
         env_file=".env", 

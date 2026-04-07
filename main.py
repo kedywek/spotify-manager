@@ -56,4 +56,10 @@ def detail_track(track_id: str, request: Request):
 
     track = spotify_service.get_track(token_info['access_token'], track_id)
     
+    artist_name = track['artists'][0]["name"]
+    track_name = track['name']
+
+    tags = spotify_service.get_lastfm_tags(artist=artist_name, track=track_name)
+
+    track["tags"] = tags
     return track
