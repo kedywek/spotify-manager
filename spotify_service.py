@@ -69,6 +69,7 @@ class SpotifyService:
             "name" : result["name"]
         }
         return track
+    
     def get_lastfm_tags(self, artist: str, track:str):
         
         params = {

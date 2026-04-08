@@ -1,5 +1,13 @@
 from pydantic import BaseModel
 from typing import List
+from sqlalchemy import Column, String
+from database import Base
+
+class TrackCache(Base):
+    __tablename__ = "track_cache"
+
+    spotify_id = Column(String, primary_key=True, index=True)
+    tags = Column(String)
 
 class PlaylistBase(BaseModel):
     id: str
