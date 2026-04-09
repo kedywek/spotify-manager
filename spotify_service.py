@@ -2,6 +2,9 @@ from spotipy import Spotify
 from spotipy.oauth2 import SpotifyOAuth
 from config import settings
 import requests
+import asyncio
+import httpx
+import re
 
 class SpotifyService:
     def __init__(self):
@@ -69,7 +72,7 @@ class SpotifyService:
             "name" : result["name"]
         }
         return track
-    
+   
     def get_lastfm_tags(self, artist: str, track:str):
         
         params = {
@@ -85,10 +88,58 @@ class SpotifyService:
             data = response.json()
 
             tags_list = data.get("toptags", {}).get("tag", [])
-            return [tag["name"].lower() for tag in tags_list[:5]]
+            return [tag["name"].lower() for tag in tags_list[:10]]
         except Exception as e:
             print(f"Last.fm error: {e}")
             return []
-
     
+    def get_playlist_tracks(self, token: str, playlist_id: str):
+        from spotipy import Spotify
+        sp = Spotify(auth=token)
+        
+        results = sp.playlist_items(playlist_id, limit=100)
+        tracks = []
+        for item in results.get('items', []):
+            t = item.get('item')
+            if not t or not t.get('id'):
+                continue
+            
+            tracks.append({
+                "id": t["id"],
+                "name": t["name"],
+                "artist": t["artists"][0]["name"] if t.get("artists") else "Unknown",
+                "year": t["album"]["release_date"][:4] if t.get("album") and t["album"].get("release_date") else "0000"
+            })
+        return tracks
+        
+    async def get_tags_batch(self, tracks_to_get):
+
+        sem = asyncio.Semaphore(5)
+
+        async with httpx.AsyncClient() as client:
+            tasks = []
+            for track in tracks_to_get:
+                tasks.append(self._fetch_track_tag(client, track, sem))
+            return await asyncio.gather(*tasks)
+
+    async def _fetch_track_tag(self, client, track, sem):
+        async with sem:
+            params = {
+                "method": "track.gettoptags",
+                "artist": track['artist'],
+                "track": track['name'],
+                "api_key": self.lastfm_api_key,
+                "format": "json"
+            }
+        try:
+            await asyncio.sleep(0.21)
+            r = await client.get("http://ws.audioscrobbler.com/2.0/", params=params, timeout=5)
+            data = r.json()
+            tags = data.get('toptags', {}).get('tag', [])
+            return {
+                "id": track['id'],
+                "tags": [t['name'].lower() for t in tags[:5]]
+            }
+        except Exception:
+            return {"id": track['id'], "tags": []}
 spotify_service = SpotifyService()
