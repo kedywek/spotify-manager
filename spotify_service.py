@@ -101,29 +101,35 @@ class SpotifyService:
         
         results = sp.playlist_items(playlist_id, limit=100)
         tracks = []
-        for item in results.get('items', []):
-            t = item.get('item')
-            if not t or not t.get('id'):
-                continue
-            
-            tracks.append({
-                "id": t["id"],
-                "name": t["name"],
-                "artist": t["artists"][0]["name"] if t.get("artists") else "Unknown",
-                "year": t["album"]["release_date"][:4] if t.get("album") and t["album"].get("release_date") else "0000"
-            })
+        def extract_data(items):
+            for item in items:
+                t = item.get('item')
+                if not t or not t.get('id'):
+                    continue
+                if t['type'] == 'episode':
+                    continue
+                tracks.append({
+                    "id": t["id"],
+                    "name": t["name"],
+                    "artist": t["artists"][0]["name"] if t.get("artists") else "Unknown",
+                    "year": t["album"]["release_date"][:4] if t.get("album") else "0000"
+                })
+        extract_data(results['items'])
+        while results['next']:
+            results = sp.next(results)
+            extract_data(results['items'])
         return tracks
     
     async def _fetch_lastfm_api(self, client, params):
         try:
-            await asyncio.sleep(0.21)  # 5 requests per second limit
+            await asyncio.sleep(0.21)
             r = await client.get(self.lastfm_base_url, params=params, timeout=5)
             if r.status_code != 200:
                 return []
             data = r.json()
             return data.get('toptags', {}).get('tag', [])
         except Exception as e:
-            print(f"Request error: {e}")
+            print(f"Request error: {repr(e)}")
             return []
         
     async def get_tags_batch(self, tracks_to_get):

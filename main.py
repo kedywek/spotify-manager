@@ -85,39 +85,31 @@ async def get_playlist_tags(playlist_id: str, request: Request, db: Session = De
     session_data = request.cookies.get("spotify_session")
     if not session_data:
         return RedirectResponse(url="/login")
-    
     token = json.loads(session_data)['access_token']
+
     tracks = spotify_service.get_playlist_tracks(token, playlist_id)
+    tracks_ids = [t['id'] for t in tracks]
 
-    track_ids = [t['id'] for t in tracks]
+    cached = db.query(models.TrackCache).filter(models.TrackCache.spotify_id.in_(tracks_ids)).all()
+    cached_ids = {c.spotify_id for c in cached}
 
-    cached = db.query(models.TrackCache).filter(models.TrackCache.spotify_id.in_(track_ids)).all()
-    cache_map = {c.spotify_id: c.tags.split(",") for c in cached}
+    ids_to_fetch = set(tracks_ids) - cached_ids
 
-    to_fetch = []
-    final_results = []
+    if ids_to_fetch:
+        unique_to_fetch = {t['id']: t for t in tracks if t['id'] in ids_to_fetch}.values()
 
-    for t in tracks:
-        if t['id'] in cache_map:
-            t['tags'] = cache_map[t['id']]
-            final_results.append(t)
-        else:
-            to_fetch.append(t)
-
-    if to_fetch:
-        new_tags_data = await spotify_service.get_tags_batch(to_fetch)
-
-        new_cache_entries = []
-        for item in new_tags_data:
-            track_obj = next(t for t in to_fetch if t['id'] == item['id'])
-            track_obj['tags'] = item['tags']
-            final_results.append(track_obj)
-
-            new_cache_entries.append(
-                models.TrackCache(spotify_id=item['id'], tags=",".join(item['tags']))
-            )
-
-        db.add_all(new_cache_entries)
+        new_tags_data = await spotify_service.get_tags_batch(list(unique_to_fetch))
+        new_entries = [
+            models.TrackCache(spotify_id=item['id'], tags=",".join(item['tags'])) 
+            for item in new_tags_data
+        ]
+        db.add_all(new_entries)
         db.commit()
 
-    return final_results
+    final_cache = db.query(models.TrackCache).filter(models.TrackCache.spotify_id.in_(tracks_ids)).all()
+    tag_map = {c.spotify_id: c.tags.split(",") for c in final_cache}
+
+    for t in tracks:
+        t['tags'] = tag_map.get(t['id'], [])
+
+    return tracks
