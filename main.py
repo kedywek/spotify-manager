@@ -7,6 +7,7 @@ from fastapi import Depends
 from sqlalchemy.orm import Session
 from database import get_db, engine
 import models
+from clusterer import MusicClusterer
 
 
 app = FastAPI()
@@ -113,3 +114,22 @@ async def get_playlist_tags(playlist_id: str, request: Request, db: Session = De
         t['tags'] = tag_map.get(t['id'], [])
 
     return tracks
+
+@app.get("/playlists/{playlist_id}/clusters")
+async def get_clusters(playlist_id: str, request: Request, db: Session = Depends(get_db), n: int = 5):
+    tracks = await get_playlist_tags(playlist_id, request, db)
+    
+    clusterer = MusicClusterer(n_clusters=n)
+    clustered_tracks = clusterer.process(tracks)
+    
+    keywords = clusterer.get_cluster_keywords()
+    
+    response = {
+        "cluster_definitions": keywords,
+        "clusters": {}
+    }
+    
+    for i in range(n):
+        response["clusters"][i] = [t for t in clustered_tracks if t['cluster'] == i]
+        
+    return response
