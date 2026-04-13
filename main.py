@@ -133,3 +133,32 @@ async def get_clusters(playlist_id: str, request: Request, db: Session = Depends
         response["clusters"][i] = [t for t in clustered_tracks if t['cluster'] == i]
         
     return response
+
+@app.post("/playlists/{playlist_id}/export")
+async def export_clusters_to_spotify(playlist_id: str, request: Request, db: Session = Depends(get_db), n: int = 5):
+    session_data = request.cookies.get("spotify_session")
+    token = json.loads(session_data)['access_token']
+    tracks_with_tags = await get_playlist_tags(playlist_id, request, db)
+    
+    clusterer = MusicClusterer(n_clusters=n)
+    clustered_tracks = clusterer.process(tracks_with_tags)
+    keywords = clusterer.get_cluster_keywords()
+
+    created_playlists = []
+    
+    for i in range(n):
+        track_ids = [t['id'] for t in clustered_tracks if t['cluster'] == i]
+        
+        if not track_ids:
+            continue
+            
+        cluster_name = f"Vibe: {', '.join(keywords[i][:3]).title()}"
+        
+        url = spotify_service.create_playlist_from_cluster(
+            token=token,
+            name=cluster_name,
+            track_ids=track_ids
+        )
+        created_playlists.append({"name": cluster_name, "url": url})
+
+    return {"message": "Success!", "exported_playlists": created_playlists}
